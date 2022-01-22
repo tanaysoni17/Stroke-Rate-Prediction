@@ -1,0 +1,273 @@
+---
+title: "LAB01"
+author: "Group7"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Lab Exercize 1
+
+#### This is a lab exercise
+
+#### We will work through the following dataset in groups
+
+#### We begin together with the dataset and preprocessing
+
+#### (Optional) Now take a few minutes now and form groups with a maximum of three
+
+#### After these data pre-prosessing steps, take some time and come up with the next step and be prepared to discuss your progress in 30 minutes
+
+#### Write out the steps toward suggesting a "first try" predictive model, such as EDA plots etc.
+
+#### You will submit your results as an individual on Bb
+
+#### The R Summary of an extensive analysis is at the end of this section
+
+```{r}
+rm(list=ls())
+```
+
+## Load uswages
+
+```{r}
+library("faraway")
+data(uswages)
+```
+
+```{r}
+names(uswages)
+```
+
+## Print a taste of the data.
+
+```{r, message=FALSE}
+head(uswages,15)
+```
+
+## Data Cleaning
+
+## Unusual values.
+
+```{r}
+summary(uswages)
+```
+
+## Since negative exper is not possible, convert to missing.
+
+```{r}
+uswages$exper[uswages$exper < 0] <- NA
+```
+
+```{r}
+summary(uswages)
+```
+
+## Deal with factors
+
+```{r}
+# convert race, smsa, and pt to factor variables
+uswages$race <- factor(uswages$race)
+levels(uswages$race) <- c("White","Black")
+
+uswages$smsa <- factor(uswages$smsa)
+levels(uswages$smsa) <- c("No","Yes")
+
+uswages$pt <- factor(uswages$pt)
+levels(uswages$pt) <- c("No","Yes")
+
+```
+
+## Or with the with function.
+
+
+```{r}
+with(uswages, 
+     race <- factor(race),
+     levels(race) <- c("White", "Black")
+     )
+```
+
+### Convert dummy var to one variable-factor
+
+
+```{r}
+# create region, a factor variable based on the four regions ne, mw, so, we
+uswages <- data.frame(uswages, 
+                      region = 
+                        1*uswages$ne +
+                        2*uswages$mw +
+                        3*uswages$so +
+                        4*uswages$we)
+uswages$region <- factor(uswages$region)
+levels(uswages$region) <- c("ne","mw","so","we")
+head(uswages,15)
+```
+
+### Remove the dummies.
+
+```{r}
+# delete the four regions ne, mw, so, we
+uswages <- subset(uswages,select=-c(ne:we))
+```
+
+```{r}
+summary(uswages)
+```
+
+#### Missing data
+
+- Delete all the missing data
+
+```{r}
+# Take care of NAs
+uswages <- na.omit(uswages)
+```
+
+#### See summary of finished product
+
+### Have one more look at the data summary
+
+```{r}
+summary(uswages)
+```
+
+
+```{r, fig.height=4.5, fig.width=7, message=FALSE}
+# Explore scatterplot matrix using the continuous predictors
+library("GGally")
+ggpairs(uswages, columns = c("educ", "exper", "wage"), alpha = I(1/5))
+# - `educ` and `exper` have a stronger relationship than either have with `wage`
+# - `wage` is skewed to the right
+# - Conclusion: Start with a simple model using `educ` as a predictor
+```
+
+
+```{r,  fig.height=9, fig.width=9, message=FALSE}
+# Explore scatterplot matrix using the continuous predictors plus one factor
+library("GGally")
+ggpairs(uswages, 
+        columns = c("region" ,"educ", "exper", "wage"),
+        lower = list(
+          continuous = "smooth",
+          combo = "facetdensity",
+          mapping = aes(color = region),
+          alpha=I(1/100)
+          )
+)
+  
+```
+
+
+```{r, fig.height=6, fig.width=7, message=FALSE}
+# The pattern in "wage vs exper" needs a closer look
+
+library("ggplot2")
+
+# This plot features loess (default) smoother-fits per region
+
+qplot(exper, 
+      log(wage), 
+      data = uswages, 
+      color = region, 
+      alpha = I(1/10)
+      ) +
+  geom_smooth()
+# loess: "Local Polynomial Regression Fitting"
+```
+
+```{r, fig.height=6, fig.width=7, message=FALSE}
+# Let's explore fitting a "global" quadratic model per region using log(wage) as the outcome
+
+library("ggplot2")
+plot1 <- qplot(exper, 
+      log(wage), 
+      data = uswages, 
+      color = region, 
+      alpha = I(1/5)
+      ) +
+  geom_smooth(method = "lm", 
+              formula = y~poly(x, degree=2),
+              se=FALSE
+              ) +
+  ggtitle("Quadratic Regressions per Region using exper ")
+plot1
+```
+
+```{r,fig.height=6, fig.width=9, message=FALSE}
+# This is further exploration of the relation between wage and exper within the part time and full time workers using pt
+
+plot3 <- plot1 + 
+  facet_grid(. ~ pt) +
+    ggtitle("Quadratic Regressions per (`region`, `pt`) using `exper`")
+
+plot3
+```
+
+```{r, fig.height=5, fig.width=7, message=FALSE}
+# Upon having a closer look at the kernal density plot of `educ`
+
+qplot(educ, data = uswages, geom = "density")
+
+# It appears there are distinct clusters that coincide with "highschool","college", and "graduate" levels of education
+
+# Creating a factor variable out of `educ` with levels equal to "highschool","college", and "graduate"
+
+uswages$education <- cut(uswages$educ,
+                     breaks=c(-Inf, 15, 17, Inf),
+                     labels=c("highschool","college","graduate"))
+
+# A boxplot of `log(wage)` per education
+
+qplot(education, 
+      log(wage), 
+      data = uswages, 
+      geom = "boxplot")
+
+```
+
+```{r, fig.height=5, fig.width=5, message=FALSE}
+# Quadratic Regressions per Region using `exper`
+plot7 <- qplot(exper,
+               log(wage),
+               data = uswages, 
+               color = region, 
+               alpha = I(1/5)
+               ) +
+  geom_smooth(method = "lm", 
+              formula = y~poly(x, degree=2),
+              se=FALSE
+              ) +
+  ggtitle("Quadratic Regressions per Region using `exper`")
+
+# Quadratic Regressions per Educ using `exper`
+plot8 <- qplot(exper, 
+               log(wage), 
+               data = uswages, 
+               color = education, 
+               alpha = I(1/5)
+               ) +
+  geom_smooth(method = "lm", 
+              formula = y~poly(x, degree=2),
+              se=FALSE
+              ) +
+  ggtitle("Quadratic Regressions per Educ using `exper`")
+
+
+library("gridExtra")
+grid.arrange(plot7, plot8, nrow=2)
+```
+
+```{r,  fig.height=9, fig.width=9, message=FALSE}
+# Quadratic Regressions `log(wages)` using `exper` per (`region`, `pt`)
+plot17 <- plot7 + 
+  facet_grid(. ~ pt) +
+  ggtitle("Quadratic Regressions `log(wages)` using `exper` per (`region`, `pt`)")
+# Quadratic Regressions `log(wages)` using `exper` per (`education`, `pt`)
+plot18 <- plot8 + 
+  facet_grid(. ~ pt) +
+  ggtitle("Quadratic Regressions `log(wages)` using `exper` per (`education`, `pt`)")
+grid.arrange(plot17, plot18, nrow=2)
+```
+
+
